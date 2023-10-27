@@ -46,9 +46,8 @@ def bruteforce_matching(keypoints1, keypoints2, descriptors1, descriptors2):
     
     return matched_keypoints1, matched_keypoints2
 
-
+# step 4) RANSAC을 사용하여 호모그래피 행렬 추정
 def find_homography(matched_keypoints1, matched_keypoints2):
-    # RANSAC을 사용하여 호모그래피 행렬 추정
     best_inliers = 0
     best_H = None
 
@@ -102,33 +101,27 @@ def find_homography(matched_keypoints1, matched_keypoints2):
     
     return best_H
 
-
+# step 5,6) homography 행렬을 활용하여 두 이미지 warping 후 파노라마 이미지 생성
 def apply_homography(H, x, y):
-    # Apply homography transformation to coordinates (x, y)
     homogenous_coords = np.array([x, y, 1])
     new_coords = np.dot(H, homogenous_coords)
     new_coords /= new_coords[2]
     return new_coords[:2]
 
-
 def create_panorama(img1, img2, H):
-    # Get dimensions of input images
     h1, w1 = img1.shape[:2]
     h2, w2 = img2.shape[:2]
 
-    # Determine the output image dimensions
-    min_x, min_y = apply_homography(H, 0, 0)
+    # Initialize the panorama image
     max_x, max_y = apply_homography(H, w2, h2)
     panorama_width = int(max(max_x, w1))
     panorama_height = int(max(max_y, h1))
-
-    # Initialize the panorama image
     panorama = np.zeros((panorama_height, panorama_width, 3), dtype=np.uint8)
 
     # Copy img1 to the panorama image
     panorama[:h1, :w1, :] = img1
 
-    # Iterate through each pixel in img2 and apply the homography to map it to the panorama
+    # img2의 각 픽셀을 반복하여 호모그래피를 적용 후 파노라마에 매핑
     print('Create Panorama..')
     for y in tqdm(range(h2)):
         for x in range(w2):
@@ -136,7 +129,7 @@ def create_panorama(img1, img2, H):
             new_x = int(new_x)
             new_y = int(new_y)
 
-            # Check if the new coordinates are within the bounds of the panorama
+            # 변환 좌표가 파노라마 이미지 범위 내에 있는지 확인
             if 0 <= new_x < panorama_width and 0 <= new_y < panorama_height:
                 panorama[new_y, new_x, :] = img2[y, x, :]
 
@@ -144,20 +137,24 @@ def create_panorama(img1, img2, H):
 
 
 if __name__ == "__main__":
+    # Step 1) choose two images
     image1 = cv2.imread('image/sogang1.jpg')
     image2 = cv2.imread('image/sogang2.jpg')
     
     image1_gray = cv2.cvtColor(image1, cv2.IMREAD_GRAYSCALE)
     image2_gray = cv2.cvtColor(image2, cv2.IMREAD_GRAYSCALE)
     
+    # Step 2) extract keypoint and descriptor using ORB
     keypoints1, descriptors1 = ORB(image1_gray)
     keypoints2, descriptors2 = ORB(image2_gray)
     
+    # Step 3) Bruteforce matching with Hamming distance
     matched_keypoints1, matched_keypoints2 = bruteforce_matching(keypoints1,keypoints2, descriptors1, descriptors2)
     
+    # Step 4) RANSAC for homography matrix
     best_H = find_homography(matched_keypoints1, matched_keypoints2)
 
-    # Create the panorama
+    # Step 5, 6) Create the panorama - prepare panorama image, warp two images to the panorama image using the homography matrix
     panorama = create_panorama(image1, image2, best_H)
 
     # Save the resulting panorama image
